@@ -9,6 +9,7 @@ to another replica, and the client only sees a pause.
 import argparse
 import asyncio
 import hashlib
+import ipaddress
 import json
 import os
 import random
@@ -53,6 +54,65 @@ NOT_FORWARDED = {
     "top_logprobs": (None, 0),
     "chat_template_kwargs": (None, {}),
 }
+
+
+LOOPBACK_NAMES = ("127.0.0.1", "localhost", "::1")
+
+
+def host_name(value):
+    """The name from a Host header or an origin: Example.com:8080 gives example.com."""
+    v = value.strip().lower()
+    if v.startswith("["):  # [::1]:8080
+        return v[1:].partition("]")[0]
+    if v.count(":") == 1:
+        v = v.partition(":")[0]
+    return v.rstrip(".")
+
+
+def is_loopback(host):
+    host = (host or "").lower()
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def name_list(value):
+    return [x.strip().lower().rstrip("/") for x in (value or "").split(",") if x.strip()]
+
+
+class BrowserGuard:
+    """Turns away requests that a web page sent, not a client the operator runs.
+
+    The router has no client auth and listens on localhost by default. A page open in a
+    browser on the same machine can reach localhost as well, in two ways. A cross-site
+    request carries an Origin header that names the page. With DNS rebinding the page
+    points its own name at 127.0.0.1, and then the Host header carries that name.
+    """
+
+    def __init__(self, bind_host, allowed_hosts=None, allowed_origins=None):
+        hosts = name_list(allowed_hosts)
+        # the Host check is on for a router on localhost and whenever names are listed
+        self.any_host = "*" in hosts or not (hosts or is_loopback(bind_host))
+        self.hosts = {*LOOPBACK_NAMES, *(host_name(h) for h in hosts)}
+        self.origins = set(name_list(allowed_origins))
+        self.any_origin = "*" in self.origins
+
+    def reason(self, host, origin):
+        """Why the request is refused, or None when it may pass."""
+        if host is not None and not self.any_host and host_name(host) not in self.hosts:
+            return (f"Host {host!r} is not a localhost name. Start the router with "
+                    "--allowed-hosts to accept it.")
+        if origin is not None and not self.any_origin:
+            o = origin.strip().lower().rstrip("/")
+            where = o.partition("://")[2]
+            same = host is not None and where == host.strip().lower()
+            if not (same or host_name(where) in LOOPBACK_NAMES or o in self.origins):
+                return (f"request from the web page {origin!r} is refused. Start the router "
+                        "with --allowed-origins to accept it.")
+        return None
 
 
 @dataclass
@@ -122,6 +182,7 @@ class Router:
         self.tasks = set()
         self.http = None
         self.stats = {"answers": 0, "finished": 0, "failed": 0, "failovers": 0}
+        self.guard = BrowserGuard(args.host, args.allowed_hosts, args.allowed_origins)
 
     # ---------- replica selection ----------
 
@@ -559,7 +620,16 @@ class Router:
         await self.http.close()
 
     def app(self):
-        app = web.Application()
+        @web.middleware
+        async def guard(request, handler):
+            why = self.guard.reason(request.headers.get("Host"), request.headers.get("Origin"))
+            if why:
+                return web.json_response(
+                    {"error": {"message": why, "type": "forbidden"}}, status=403
+                )
+            return await handler(request)
+
+        app = web.Application(middlewares=[guard])
         app.on_startup.append(self.on_startup)
         app.on_cleanup.append(self.on_cleanup)
         app.router.add_post("/v1/chat/completions", self.chat)
@@ -578,6 +648,12 @@ def parse_args(argv=None):
     p.add_argument("--host", default="127.0.0.1",
                    help="there is no client auth, so the default is localhost only")
     p.add_argument("--port", type=int, default=8080)
+    p.add_argument("--allowed-hosts", default=None,
+                   help="extra names to accept in the Host header, comma-separated, * for any; "
+                        "a router on localhost accepts only localhost names by default")
+    p.add_argument("--allowed-origins", default=None,
+                   help="web page origins that may call the router, comma-separated, * for any; "
+                        "by default only the router's own address and localhost pages may")
     p.add_argument("--first-token-timeout", type=float, default=15.0)
     p.add_argument("--min-gap", type=float, default=1.0,
                    help="lower bound of the silence timer, seconds")

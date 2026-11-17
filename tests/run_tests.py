@@ -668,6 +668,63 @@ async def main(args):
             f"{len(really_set)} выставленных отклонены, «не задано» проходит"
             if good else "ПРОВАЛ")
 
+        # 19. Запросы, которые могла прислать только веб-страница: чужой Origin и чужой Host
+        #     получают 403, свой адрес и localhost проходят
+        async def knock(method, path, headers, body=None):
+            async with env.session.request(method, ROUTER + path, headers=headers,
+                                           json=body) as r:
+                return r.status
+
+        chat = "/v1/chat/completions"
+        body = {"messages": [{"role": "user", "content": prompts[0]}], "seed": 0, "max_tokens": 8}
+        refused = {
+            "чужой Origin": ("POST", chat, {"Origin": "https://evil.example"}, body),
+            "Origin null": ("POST", chat, {"Origin": "null"}, body),
+            "Origin похож на localhost": ("POST", chat,
+                                          {"Origin": "http://localhost.evil.example"}, body),
+            "чужой Host": ("GET", "/metrics", {"Host": f"evil.example:{ROUTER_PORT}"}, None),
+            "Host 0.0.0.0": ("GET", "/metrics", {"Host": f"0.0.0.0:{ROUTER_PORT}"}, None),
+            "чужой Host со своим Origin": ("POST", chat,
+                                           {"Host": f"evil.example:{ROUTER_PORT}",
+                                            "Origin": f"http://evil.example:{ROUTER_PORT}"}, body),
+        }
+        passed = {
+            "без Origin": ("POST", chat, {}, body),
+            "свой Origin": ("POST", chat, {"Origin": f"http://127.0.0.1:{ROUTER_PORT}"}, body),
+            "страница с localhost": ("POST", chat, {"Origin": "http://localhost:3000"}, body),
+            "Host localhost": ("GET", "/metrics", {"Host": f"localhost:{ROUTER_PORT}"}, None),
+            "Host [::1]": ("GET", "/metrics", {"Host": f"[::1]:{ROUTER_PORT}"}, None),
+        }
+        good = True
+        for name, call in refused.items():
+            status = await knock(*call)
+            good &= env.check(status == 403, "guard", f"«{name}» прошёл, статус {status}")
+        for name, call in passed.items():
+            status = await knock(*call)
+            good &= env.check(status == 200, "guard", f"«{name}» отклонён, статус {status}")
+        # те же правила с флагами запуска, без процессов: (страж, Host, Origin, пропустить ли)
+        sys.path.insert(0, ROOT)
+        from router import BrowserGuard
+        table = [
+            (BrowserGuard("0.0.0.0"), "api.example:8080", None, True),
+            (BrowserGuard("0.0.0.0"), "api.example:8080", "https://evil.example", False),
+            (BrowserGuard("0.0.0.0"), "api.example:8080", "https://api.example:8080", True),
+            (BrowserGuard("0.0.0.0", "api.example"), "other.example", None, False),
+            (BrowserGuard("0.0.0.0", "api.example"), "127.0.0.1:8080", None, True),
+            (BrowserGuard("127.0.0.1", "api.example"), "API.example.:443", None, True),
+            (BrowserGuard("127.0.0.1", "*"), "evil.example", None, True),
+            (BrowserGuard("127.0.0.1", None, "https://ui.example"), "127.0.0.1:8080",
+             "https://ui.example/", True),
+            (BrowserGuard("127.0.0.1", None, "*"), "127.0.0.1:8080", "https://evil.example", True),
+            (BrowserGuard("127.0.0.1"), None, None, True),
+        ]
+        for i, (guard, host, origin, ok) in enumerate(table):
+            good &= env.check((guard.reason(host, origin) is None) == ok, "guard",
+                              f"строка таблицы {i}: Host={host} Origin={origin}")
+        report["Origin и Host"] = (
+            f"{len(refused)} чужих отклонены, {len(passed)} своих прошли, "
+            f"{len(table)} строк таблицы сошлись" if good else "ПРОВАЛ")
+
         # после всего роутер жив и отвечает как раньше
         res = await ask(env, prompts[0], 0)
         info = await env.info(res.answer_id)

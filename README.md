@@ -80,7 +80,7 @@ pip install aiohttp
 python tests/run_tests.py --n 100
 ```
 
-The script starts fake replicas and routers on local ports 19001-19004 and 18080-18083. It covers `kill -9`, `SIGSTOP`, a client that disconnects and comes back, a request that kills every replica it touches, all replicas dead, one replica or all of them frozen before the request, a replica that keeps the connection open but stops sending tokens, HTTP 400 from a replica, `abort` and `repetition` finish reasons, an answer cut in the middle of a character, replicas that require an API key, resume cursors, and request fields the router does not forward.
+The script starts fake replicas and routers on local ports 19001-19004 and 18080-18083. It covers `kill -9`, `SIGSTOP`, a client that disconnects and comes back, a request that kills every replica it touches, all replicas dead, one replica or all of them frozen before the request, a replica that keeps the connection open but stops sending tokens, HTTP 400 from a replica, `abort` and `repetition` finish reasons, an answer cut in the middle of a character, replicas that require an API key, resume cursors, request fields the router does not forward, and requests with a foreign `Origin` or `Host` header.
 
 ## Run it on real vLLM
 
@@ -148,7 +148,7 @@ This is a research prototype and I have not hardened it.
 
 - The router has no client authentication, so it listens on 127.0.0.1 by default. Anyone who can reach the port can start answers and read the ones in progress: `/metrics` lists the IDs of active answers, and `/v1/answers/{id}` and `/v1/streams/{id}` return their text.
 - If you start it with `--host 0.0.0.0`, put a proxy that checks who is calling in front of it.
-- The router does not check the `Origin` or `Host` headers, so requests that a web page in a local browser sends to it are not filtered out.
+- A web page open in a browser on the same machine can reach localhost too, so the router refuses requests that came from one. A request with an `Origin` header gets HTTP 403 unless the origin is the router's own address or a localhost page. A router that listens on localhost also answers 403 to a `Host` header that is not a localhost name, and that stops DNS rebinding. `--allowed-origins` and `--allowed-hosts` add entries, and `*` turns a check off.
 - Prompts and answers are kept in memory and dropped 60 seconds after the answer ends. The router writes nothing to disk.
 - `step0.py serve` starts a vLLM replica that listens on all interfaces. Give it `--api-key`, or `--host 127.0.0.1` when the replicas are reached through a tunnel.
 - Pass the replica key in `UNDEAD_REPLICA_API_KEY` rather than `--replica-api-key`. Command-line arguments show up in the process list.
