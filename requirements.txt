@@ -1,0 +1,3 @@
+# aiohttp before 3.14.4 has known security advisories (checked with pip-audit on 17 November 2026). The measurements ran on 3.14.5.
+aiohttp>=3.14.4
+# for real replicas: vllm==0.33.0 (it pulls in transformers and torch)

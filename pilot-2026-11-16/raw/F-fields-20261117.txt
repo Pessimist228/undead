@@ -1,0 +1,8 @@
+"presence_penalty":0.5 -> HTTP 400: field presence_penalty is not supported in this version
+"frequency_penalty":0.3 -> HTTP 400: field frequency_penalty is not supported in this version
+"top_k":40 -> HTTP 400: field top_k is not supported in this version
+"stop":["x"] -> HTTP 400: field stop is not supported in this version
+"tools":[{"type":"function"}] -> HTTP 400: field tools is not supported in this version
+"n":2 -> HTTP 400: field n is not supported in this version
+"response_format":{"type":"json_object"} -> HTTP 400: field response_format is not supported in this version
+готово

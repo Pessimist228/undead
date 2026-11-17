@@ -1,0 +1,40 @@
+vllm 0.34.0 torch 2.14.0+cu130
+реплики поднялись за 160 с
+Using AttentionBackendEnum.FLASH_ATTN backend
+== check_vllm.py
+Реплика: http://127.0.0.1:8001, продолжение на http://127.0.0.1:8002, модель: /dev/shm/models/Qwen2.5-1.5B-Instruct, промпт: 46 токенов
+
+[формат стрима]
+  чанков: 16, с token_ids: 16, токенов всего: 24
+  prompt_token_ids в первом чанке: да
+  больше одного токена в чанке: бывает
+  logprobs в чанках: да
+  finish_reason: length, стоп-токен попал в token_ids: нет
+  текст: '1. Kubernetes обеспечивает автоматизацию и управление ресурсами в кластерах, что делает'
+
+[жадный выбор]
+  два контрольных прогона совпали: да
+  logprobs продолжения побитово равны контролю: 64 из 64, наибольшая разница 0
+  разрез на токене 32: продолжение совпало с контролем, 96 токенов
+
+[сид 42, temperature 0.8, top_p 0.95]
+  два контрольных прогона совпали: да
+  logprobs продолжения побитово равны контролю: 64 из 64, наибольшая разница 0
+  разрез на токене 32: продолжение совпало с контролем, 96 токенов
+
+Всё прошло.
+check_vllm rc=0
+== ответ с kill -9 посередине
+321 tokens, served by replica :8001 -> :8002
+replica died mid-answer, the router resumed it elsewhere. Pause: 48 ms
+sha256 of token IDs: 6a7ceb51eebd48aeca8f6175ff9df2c5
+answer is served by replica :8001
+process group 11084
+$ kill -9 -11084
+replica :8001 is dead
+== контроль без сбоя
+321 tokens, served by replica :8002
+no failure during this answer
+sha256 of token IDs: 6a7ceb51eebd48aeca8f6175ff9df2c5
+interrupted answer:  6a7ceb51eebd48aeca8f6175ff9df2c5
+identical, token for token

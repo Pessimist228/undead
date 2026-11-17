@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.venv/
+results/
+results-*/
+*.log
+venv/
+.env
+.env.*
+*.pem
+*.key
+serve-*.json
+/demo.cast

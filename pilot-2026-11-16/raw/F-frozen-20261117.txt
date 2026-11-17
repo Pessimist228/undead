@@ -1,0 +1,16 @@
+реплики поднялись за 45 с
+0. демо-запрос, сид 42: sha256 of token IDs: 6a7ceb51eebd48aeca8f6175ff9df2c5
+   на машине из ролика (драйвер 595.91.07) было: 6a7ceb51eebd48aeca8f6175ff9df2c5
+1. обычный ответ: 200 за 0.958987 с
+    The sea is a vast, deep blue expanse that covers much of the Earth's surface, providing a 
+2. presence_penalty=0.5: 400 за 0.000972 с
+    expected JSON with a messages field
+3. курсор abc: HTTP 400; чужой ответ: HTTP 400; from=0: HTTP 200
+группы процессов реплик: 6011 6012 
+4. обе реплики заморожены, дедлайн 20 с: 502 за 24.009938 с
+    no live replicas for more than 20 s
+5. после разморозки: 200 за 0.981197 с
+    The sea is a vast, deep blue expanse that covers much of the Earth's surface, providing a 
+   тот же текст, что в п. 1 (тот же сид)
+metrics: {'answers': 4, 'finished': 3, 'failed': 1, 'failovers': 0} {'http://127.0.0.1:8001': 'up', 'http://127.0.0.1:8002': 'up'}
+готово
