@@ -1,0 +1,43 @@
+Load: 2026-11-19T14:51:06Z to 2026-11-19T16:31:14Z UTC, 1 h 40 min
+
+CARDS
+  Cards rented: 15; served (healthy at least once): 7; never served: 7; not tracked (no data): 1
+  Card-hours with a healthy server: 4.84
+  Stops not caused by us: 8 (1.65 per healthy card-hour)
+    bid x1.15 of minimum: 3 cards, 0.11 healthy card-h, 1 stops, 9.11 per card-hour
+    bid x1.30 of minimum: 11 cards, 4.73 healthy card-h, 7 stops, 1.48 per card-hour
+  Came back: 4 of 8; down time median 2 min, max 9 min (of those that came back)
+  Rent to first healthy: median 6 min
+    card 1: 4 min
+    card 2: never
+    card 3: never
+    card 4: 11 min
+    card 5: never
+    card 6: 4 min
+    card 7: 6 min
+    card 8: never
+    card 9: never
+    card 10: never
+    card 11: never
+    card 12: 15 min
+    card 13: 13 min
+    card 14: 2 min
+    card 15: not tracked
+  Healthy cards during load: min 0, median 2.0
+
+REQUESTS
+  Total 15,870, finished 15,831 (99.75%), failed 39
+    rejected with 503: 39, stream cut: 0, other: 0
+  Streams resumed: 73 (73 resume events, source: journal)
+    pause p50 0.63 s, p95 47.26 s, max 47.26 s; under 2 s: 78% of pauses; over 10 s: 16
+  Time to first chunk: p50 0.26 s, p95 7.31 s
+  Tokens generated: 7,915,453
+
+MONEY
+  Used (credit start minus last reading): $2.92
+  Time-based estimate (dph x time): $3.73
+  Dollars per million tokens (credit): $0.369
+  Rented card-hours (rent to destroy): 10.59; cost per rented card-hour: $0.276
+  Cost per healthy card-hour: $0.603
+  Per healthy card-hour we paid $0.603, which is higher than the on-demand price of $0.430 (140% of it).
+  Same card-hours at on-demand $0.430/h: $2.08 for healthy card-hours, $4.56 for rented card-hours (10.59 h)

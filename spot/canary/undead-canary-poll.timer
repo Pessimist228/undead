@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Vast.ai spot canary poll every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target

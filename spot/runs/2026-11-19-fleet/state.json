@@ -1,0 +1,341 @@
+{
+ "ambiguous": [],
+ "budget": 5.2,
+ "credit_start": 6.596502967229988,
+ "disk": 40.0,
+ "exclude_geo": [
+  "CN"
+ ],
+ "finish_reason": "manual_stop",
+ "finished_at": 1795105972.1193237,
+ "gpu": "RTX 4090",
+ "hours": 2.1,
+ "instances": [
+  {
+   "bid": 0.307,
+   "created": 1795099597.9535718,
+   "destroyed": 1795102525.702691,
+   "geolocation": "California, US",
+   "host_id": 366851,
+   "hourly": 0.3366296296296296,
+   "id": 61464869,
+   "inet_down": 10328.9,
+   "inet_down_cost": 0.011999999999999999,
+   "inet_up_cost": 0.011999999999999999,
+   "last": {
+    "hb": "none",
+    "status": "exited"
+   },
+   "machine_id": 150323,
+   "min_bid": 0.26666666666666666,
+   "offer_id": 61198994,
+   "premium": 1.15
+  },
+  {
+   "bid": 0.351,
+   "created": 1795099600.1961157,
+   "destroyed": 1795100756.984208,
+   "geolocation": "Oregon, US",
+   "host_id": 24953,
+   "hourly": 0.3621111111111111,
+   "id": 61464873,
+   "inet_down": 630.8,
+   "inet_down_cost": 0.00390625,
+   "inet_up_cost": 0.00390625,
+   "last": {
+    "hb": "none",
+    "status": "created"
+   },
+   "machine_id": 18857,
+   "min_bid": 0.305,
+   "offer_id": 60688975,
+   "premium": 1.15
+  },
+  {
+   "bid": 0.384,
+   "created": 1795099602.5234365,
+   "destroyed": 1795100757.8425102,
+   "geolocation": "Texas, US",
+   "host_id": 60400,
+   "hourly": 0.4025185185185185,
+   "id": 61464879,
+   "inet_down": 4892.8,
+   "inet_down_cost": 0.005208333333333333,
+   "inet_up_cost": 0.010416666666666666,
+   "last": {
+    "hb": "none",
+    "status": "created"
+   },
+   "machine_id": 153602,
+   "min_bid": 0.3333333333333333,
+   "offer_id": 56245923,
+   "premium": 1.15
+  },
+  {
+   "bid": 0.367,
+   "created": 1795099604.7983506,
+   "destroyed": 1795105969.2724385,
+   "geolocation": "South Korea, KR",
+   "host_id": 387422,
+   "hourly": 0.3744074074074074,
+   "id": 61464883,
+   "inet_down": 474.3,
+   "inet_down_cost": 0.00026041666666666666,
+   "inet_up_cost": 0.00039062499999999997,
+   "last": {
+    "hb": "bad",
+    "status": "running"
+   },
+   "machine_id": 146025,
+   "min_bid": 0.282,
+   "offer_id": 46384003,
+   "premium": 1.3
+  },
+  {
+   "bid": 0.389,
+   "created": 1795099607.0102558,
+   "destroyed": 1795100758.776901,
+   "geolocation": "New Brunswick, CA",
+   "host_id": 89091,
+   "hourly": 0.4112222222222222,
+   "id": 61464885,
+   "inet_down": 452.4,
+   "inet_down_cost": 0.00390625,
+   "inet_up_cost": 0.00390625,
+   "last": {
+    "hb": "none",
+    "status": "loading"
+   },
+   "machine_id": 24573,
+   "min_bid": 0.2986666666666667,
+   "offer_id": 60002768,
+   "premium": 1.3
+  },
+  {
+   "bid": 0.434,
+   "created": 1795099609.2193198,
+   "destroyed": 1795101926.070994,
+   "geolocation": "Washington, US",
+   "host_id": 22965,
+   "hourly": 0.4451111111111111,
+   "id": 61464890,
+   "inet_down": 1702.2,
+   "inet_down_cost": 0.0006510416666666666,
+   "inet_up_cost": 0.005208333333333333,
+   "last": {
+    "hb": "none",
+    "status": "exited"
+   },
+   "machine_id": 10384,
+   "min_bid": 0.3333333333333333,
+   "offer_id": 61331073,
+   "premium": 1.3
+  },
+  {
+   "bid": 0.35,
+   "created": 1795100760.8894806,
+   "destroyed": 1795105969.9807785,
+   "geolocation": "France, FR",
+   "host_id": 600531,
+   "hourly": 0.3611111111111111,
+   "id": 61467918,
+   "inet_down": 944.2,
+   "inet_down_cost": 0.0026041666666666665,
+   "inet_up_cost": 0.00390625,
+   "last": {
+    "hb": "ok",
+    "status": "running"
+   },
+   "machine_id": 154295,
+   "min_bid": 0.269,
+   "offer_id": 60788541,
+   "premium": 1.3
+  },
+  {
+   "bid": 0.389,
+   "created": 1795100765.4562306,
+   "destroyed": 1795101924.0097628,
+   "geolocation": "New Brunswick, CA",
+   "host_id": 89091,
+   "hourly": 0.4112222222222222,
+   "id": 61467927,
+   "inet_down": 452.4,
+   "inet_down_cost": 0.00390625,
+   "inet_up_cost": 0.00390625,
+   "last": {
+    "hb": "none",
+    "status": "loading"
+   },
+   "machine_id": 24573,
+   "min_bid": 0.2986666666666667,
+   "offer_id": 60002767,
+   "premium": 1.3
+  },
+  {
+   "bid": 0.416,
+   "created": 1795100781.8731103,
+   "destroyed": 1795101925.024228,
+   "geolocation": "Sweden, SE",
+   "host_id": 90233,
+   "hourly": 0.4271111111111111,
+   "id": 61467951,
+   "inet_down": 386.4,
+   "inet_down_cost": 2.6041666666666666e-06,
+   "inet_up_cost": 3.90625e-06,
+   "last": {
+    "hb": "bad",
+    "status": "running"
+   },
+   "machine_id": 16358,
+   "min_bid": 0.32,
+   "offer_id": 29357621,
+   "premium": 1.3
+  },
+  {
+   "bid": 0.405,
+   "created": 1795101928.2967849,
+   "destroyed": 1795103119.5626364,
+   "geolocation": "Switzerland, CH",
+   "host_id": 149408,
+   "hourly": 0.41611111111111115,
+   "id": 61470678,
+   "inet_down": 626.9,
+   "inet_down_cost": 0.0026041666666666665,
+   "inet_up_cost": 0.00390625,
+   "last": {
+    "hb": "none",
+    "status": "loading"
+   },
+   "machine_id": 57583,
+   "min_bid": 0.311,
+   "offer_id": 60656244,
+   "premium": 1.3
+  },
+  {
+   "bid": 0.416,
+   "created": 1795101930.584589,
+   "destroyed": 1795103120.4998462,
+   "geolocation": "Sweden, SE",
+   "host_id": 90233,
+   "hourly": 0.4271111111111111,
+   "id": 61470685,
+   "inet_down": 386.4,
+   "inet_down_cost": 2.6041666666666666e-06,
+   "inet_up_cost": 3.90625e-06,
+   "last": {
+    "hb": "none",
+    "status": "exited"
+   },
+   "machine_id": 16358,
+   "min_bid": 0.32,
+   "offer_id": 29357621,
+   "premium": 1.3
+  },
+  {
+   "bid": 0.423,
+   "created": 1795101932.854329,
+   "destroyed": 1795105970.7033992,
+   "geolocation": "Oregon, US",
+   "host_id": 24953,
+   "hourly": 0.4341111111111111,
+   "id": 61470689,
+   "inet_down": 701.2,
+   "inet_down_cost": 0.00390625,
+   "inet_up_cost": 0.00390625,
+   "last": {
+    "hb": "none",
+    "status": "exited"
+   },
+   "machine_id": 26487,
+   "min_bid": 0.325,
+   "offer_id": 60688988,
+   "premium": 1.3
+  },
+  {
+   "bid": 0.292,
+   "created": 1795102528.0414073,
+   "destroyed": 1795105971.439853,
+   "geolocation": "France, FR",
+   "host_id": 75829,
+   "hourly": 0.3142222222222222,
+   "id": 61472003,
+   "inet_down": 720.1,
+   "inet_down_cost": 0.005208333333333333,
+   "inet_up_cost": 0.006510416666666667,
+   "last": {
+    "hb": "ok",
+    "status": "running"
+   },
+   "machine_id": 156702,
+   "min_bid": 0.224,
+   "offer_id": 59680397,
+   "premium": 1.3
+  },
+  {
+   "bid": 0.347,
+   "created": 1795103124.861647,
+   "destroyed": 1795105972.1146348,
+   "geolocation": "California, US",
+   "host_id": 366851,
+   "hourly": 0.3766296296296296,
+   "id": 61473283,
+   "inet_down": 9175.6,
+   "inet_down_cost": 0.011999999999999999,
+   "inet_up_cost": 0.011999999999999999,
+   "last": {
+    "hb": "ok",
+    "status": "running"
+   },
+   "machine_id": 150717,
+   "min_bid": 0.26666666666666666,
+   "offer_id": 60409667,
+   "premium": 1.3
+  }
+ ],
+ "last_credit": 3.675152592229992,
+ "max_bid": 0.45,
+ "max_traffic_cost": 0.012,
+ "min_down": 200.0,
+ "phase": "finished",
+ "poll_count": 104,
+ "premium": 1.15,
+ "profile": {
+  "disk": 40,
+  "env": {
+   "VLLM_USE_V2_MODEL_RUNNER": "1"
+  },
+  "health_bearer": true,
+  "health_path": "/v1/models",
+  "image": "vllm/vllm-openai:v0.33.0",
+  "label": "undead-demo",
+  "port": 8000
+ },
+ "rent_errors": [
+  {
+   "error": "PUT /api/v0/asks/60688998/ -> HTTP 400 error 404/3603: no_such_ask  Instance type by id 60688998 is not available.",
+   "offer": 60688998
+  },
+  {
+   "error": "PUT /api/v0/asks/61021928/ -> HTTP 400 error 404/3603: no_such_ask  Instance type by id 61021928 is not available.",
+   "offer": 61021928
+  },
+  {
+   "error": "PUT /api/v0/asks/60688998/ -> HTTP 400 error 404/3603: no_such_ask  Instance type by id 60688998 is not available.",
+   "offer": 60688998
+  },
+  {
+   "error": "PUT /api/v0/asks/60688998/ -> HTTP 400 error 404/3603: no_such_ask  Instance type by id 60688998 is not available.",
+   "offer": 60688998
+  },
+  {
+   "error": "PUT /api/v0/asks/53080136/ -> HTTP 400 error 404/3603: no_such_ask  Instance type by id 53080136 is not available.",
+   "offer": 53080136
+  },
+  {
+   "error": "PUT /api/v0/asks/55372276/ -> HTTP 400 error 404/3603: no_such_ask  Instance type by id 55372276 is not available.",
+   "offer": 55372276
+  }
+ ],
+ "started": 1795099597.2773142,
+ "version": 1
+}

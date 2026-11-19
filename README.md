@@ -28,6 +28,16 @@ Pilot run on 16 November 2026: vLLM 0.33.0, two RTX 4090 on two machines, Qwen2.
 
 The tables are in [pilot-2026-11-16/RESULTS.md](pilot-2026-11-16/RESULTS.md). The raw journals and a script that recomputes every number are next to it.
 
+## On interruptible GPUs
+
+On 19 November 2026 I ran the router for 100 minutes on interruptible RTX 4090s rented at Vast.ai, where the marketplace can stop an instance at any moment. It stopped a serving card 8 times. Of 15,870 streaming requests 15,831 finished and 39 got HTTP 503 while capacity was short. No stream was cut mid-answer: 73 answers moved to another card and finished there.
+
+It was not cheaper than on-demand: $0.60 per card-hour that served against about $0.43, because only 4.84 of the 10.59 rented card-hours were spent serving.
+
+![One row per rented card over the 100 minutes: loading, healthy, down, and the moments the marketplace took it](spot/runs/2026-11-19-fleet/report/poster.png)
+
+The run used the router from the `router-registry` branch, which adds a replica registry, a stream limit per replica, a queue and a request journal. The replicas ran without batch invariance, so the run shows that streams survive, not that the resumed tokens are identical. Scripts, logs and the report are in [spot/](spot/).
+
 ## How it works
 
 1. The client sends a normal `POST /v1/chat/completions`.
@@ -175,6 +185,7 @@ Next for the router itself: two pools of replicas, fast and strict, with the cho
 | `tests/run_tests.py` | Router tests on fake replicas |
 | `demo/` | The recorded demo: client, kill helper, terminal recorder, renderer, and the video |
 | `pilot-2026-11-16/` | Results of the pilot run, raw journals, `verify.py` |
+| `spot/` | Runs on interruptible GPUs: price collector, renter, load generator, logs and report of the 19 November run |
 
 ## License
 

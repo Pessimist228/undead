@@ -1,0 +1,14 @@
+[Unit]
+Description=Vast.ai spot canary: one poll pass
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 /opt/undead/canary/canary.py --dir /var/lib/undead-canary poll
+ProtectSystem=strict
+ReadWritePaths=/var/lib/undead-canary
+ProtectHome=yes
+PrivateTmp=yes
+TimeoutStartSec=50

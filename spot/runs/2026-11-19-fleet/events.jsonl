@@ -1,0 +1,78 @@
+{"bid": 0.307, "event": "created", "id": 61464869, "offer": 61198994, "t": "2026-11-19T14:46:37Z"}
+{"bid": 0.351, "event": "created", "id": 61464873, "offer": 60688975, "t": "2026-11-19T14:46:40Z"}
+{"bid": 0.384, "event": "created", "id": 61464879, "offer": 56245923, "t": "2026-11-19T14:46:42Z"}
+{"bid": 0.367, "event": "created", "id": 61464883, "offer": 46384003, "t": "2026-11-19T14:46:44Z"}
+{"bid": 0.389, "event": "created", "id": 61464885, "offer": 60002768, "t": "2026-11-19T14:46:47Z"}
+{"bid": 0.434, "event": "created", "id": 61464890, "offer": 61331073, "t": "2026-11-19T14:46:49Z"}
+{"detail": "", "event": "change", "id": 61464869, "new": {"hb": "none", "status": "loading"}, "old": null, "t": "2026-11-19T14:47:37Z"}
+{"detail": "", "event": "change", "id": 61464873, "new": {"hb": "none", "status": "loading"}, "old": null, "t": "2026-11-19T14:47:37Z"}
+{"detail": "", "event": "change", "id": 61464879, "new": {"hb": "none", "status": "loading"}, "old": null, "t": "2026-11-19T14:47:37Z"}
+{"detail": "", "event": "change", "id": 61464883, "new": {"hb": "none", "status": "loading"}, "old": null, "t": "2026-11-19T14:47:37Z"}
+{"detail": "", "event": "change", "id": 61464885, "new": {"hb": "none", "status": "loading"}, "old": null, "t": "2026-11-19T14:47:37Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61464890, "new": {"hb": "bad", "status": "running"}, "old": null, "t": "2026-11-19T14:47:37Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61464869, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "loading"}, "t": "2026-11-19T14:50:40Z"}
+{"detail": "200", "event": "change", "id": 61464869, "new": {"hb": "ok", "status": "running"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T14:51:41Z"}
+{"detail": "", "event": "change", "id": 61464873, "new": {"hb": "none", "status": "created"}, "old": {"hb": "none", "status": "loading"}, "t": "2026-11-19T14:51:41Z"}
+{"detail": "200", "event": "change", "id": 61464890, "new": {"hb": "ok", "status": "running"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T14:51:42Z"}
+{"detail": "", "event": "change", "id": 61464879, "new": {"hb": "none", "status": "created"}, "old": {"hb": "none", "status": "loading"}, "t": "2026-11-19T14:52:42Z"}
+{"detail": "", "event": "change", "id": 61464890, "new": {"hb": "none", "status": "exited"}, "old": {"hb": "ok", "status": "running"}, "t": "2026-11-19T14:52:42Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61464883, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "loading"}, "t": "2026-11-19T14:54:46Z"}
+{"detail": "", "event": "change", "id": 61464869, "new": {"hb": "none", "status": "exited"}, "old": {"hb": "ok", "status": "running"}, "t": "2026-11-19T14:57:47Z"}
+{"detail": "200", "event": "change", "id": 61464883, "new": {"hb": "ok", "status": "running"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T14:58:48Z"}
+{"event": "dropped", "id": 61464873, "t": "2026-11-19T15:05:56Z"}
+{"event": "dropped", "id": 61464879, "t": "2026-11-19T15:05:57Z"}
+{"event": "dropped", "id": 61464885, "t": "2026-11-19T15:05:58Z"}
+{"bid": 0.35, "event": "created", "id": 61467918, "offer": 60788541, "t": "2026-11-19T15:06:00Z"}
+{"bid": 0.389, "event": "created", "id": 61467927, "offer": 60002767, "t": "2026-11-19T15:06:05Z"}
+{"bid": 0.416, "event": "created", "id": 61467951, "offer": 29357621, "t": "2026-11-19T15:06:21Z"}
+{"detail": "", "event": "change", "id": 61467918, "new": {"hb": "none", "status": "loading"}, "old": null, "t": "2026-11-19T15:06:55Z"}
+{"detail": "", "event": "change", "id": 61467927, "new": {"hb": "none", "status": "loading"}, "old": null, "t": "2026-11-19T15:06:55Z"}
+{"detail": "", "event": "change", "id": 61467951, "new": {"hb": "none", "status": "loading"}, "old": null, "t": "2026-11-19T15:06:55Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61467918, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "loading"}, "t": "2026-11-19T15:09:58Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61467951, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "loading"}, "t": "2026-11-19T15:10:59Z"}
+{"detail": "200", "event": "change", "id": 61467918, "new": {"hb": "ok", "status": "running"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T15:12:00Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61464883, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "ok", "status": "running"}, "t": "2026-11-19T15:24:10Z"}
+{"event": "dropped", "id": 61467927, "t": "2026-11-19T15:25:24Z"}
+{"event": "dropped", "id": 61467951, "t": "2026-11-19T15:25:25Z"}
+{"event": "dropped", "id": 61464890, "t": "2026-11-19T15:25:26Z"}
+{"bid": 0.405, "event": "created", "id": 61470678, "offer": 60656244, "t": "2026-11-19T15:25:28Z"}
+{"bid": 0.416, "event": "created", "id": 61470685, "offer": 29357621, "t": "2026-11-19T15:25:30Z"}
+{"bid": 0.423, "event": "created", "id": 61470689, "offer": 60688988, "t": "2026-11-19T15:25:32Z"}
+{"detail": "200", "event": "change", "id": 61464883, "new": {"hb": "ok", "status": "running"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T15:26:13Z"}
+{"detail": "", "event": "change", "id": 61470678, "new": {"hb": "none", "status": "loading"}, "old": null, "t": "2026-11-19T15:26:13Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61470685, "new": {"hb": "bad", "status": "running"}, "old": null, "t": "2026-11-19T15:26:13Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61470689, "new": {"hb": "bad", "status": "running"}, "old": null, "t": "2026-11-19T15:26:13Z"}
+{"detail": "", "event": "change", "id": 61470685, "new": {"hb": "none", "status": "exited"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T15:28:15Z"}
+{"detail": "", "event": "change", "id": 61470689, "new": {"hb": "none", "status": "exited"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T15:28:15Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61470689, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "exited"}, "t": "2026-11-19T15:32:19Z"}
+{"event": "dropped", "id": 61464869, "t": "2026-11-19T15:35:25Z"}
+{"bid": 0.292, "event": "created", "id": 61472003, "offer": 59680397, "t": "2026-11-19T15:35:28Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61472003, "new": {"hb": "bad", "status": "running"}, "old": null, "t": "2026-11-19T15:36:22Z"}
+{"detail": "200", "event": "change", "id": 61470689, "new": {"hb": "ok", "status": "running"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T15:40:25Z"}
+{"event": "dropped", "id": 61470678, "t": "2026-11-19T15:45:19Z"}
+{"event": "dropped", "id": 61470685, "t": "2026-11-19T15:45:20Z"}
+{"bid": 0.347, "event": "created", "id": 61473283, "offer": 60409667, "t": "2026-11-19T15:45:24Z"}
+{"bid": 0.416, "event": "created", "id": 61473299, "offer": 54044397, "t": "2026-11-19T15:45:29Z"}
+{"detail": "", "event": "change", "id": 61473283, "new": {"hb": "none", "status": "unknown"}, "old": null, "t": "2026-11-19T15:45:30Z"}
+{"detail": "", "event": "change", "id": 61470689, "new": {"hb": "none", "status": "exited"}, "old": {"hb": "ok", "status": "running"}, "t": "2026-11-19T15:46:30Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61473283, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "unknown"}, "t": "2026-11-19T15:46:31Z"}
+{"detail": "200", "event": "change", "id": 61473283, "new": {"hb": "ok", "status": "running"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T15:47:31Z"}
+{"detail": "200", "event": "change", "id": 61472003, "new": {"hb": "ok", "status": "running"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T15:49:33Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61470689, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "exited"}, "t": "2026-11-19T15:54:38Z"}
+{"detail": "200", "event": "change", "id": 61470689, "new": {"hb": "ok", "status": "running"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T15:55:39Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61464883, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "ok", "status": "running"}, "t": "2026-11-19T16:17:59Z"}
+{"detail": "", "event": "change", "id": 61464883, "new": {"hb": "none", "status": "exited"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T16:19:00Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61464883, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "exited"}, "t": "2026-11-19T16:20:02Z"}
+{"detail": "200", "event": "change", "id": 61464883, "new": {"hb": "ok", "status": "running"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T16:21:03Z"}
+{"detail": "", "event": "change", "id": 61470689, "new": {"hb": "none", "status": "exited"}, "old": {"hb": "ok", "status": "running"}, "t": "2026-11-19T16:23:05Z"}
+{"detail": "", "event": "change", "id": 61464883, "new": {"hb": "none", "status": "exited"}, "old": {"hb": "ok", "status": "running"}, "t": "2026-11-19T16:26:07Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61464883, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "exited"}, "t": "2026-11-19T16:27:07Z"}
+{"detail": "", "event": "change", "id": 61464883, "new": {"hb": "none", "status": "exited"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T16:28:08Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61464883, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "exited"}, "t": "2026-11-19T16:30:09Z"}
+{"detail": "", "event": "change", "id": 61464883, "new": {"hb": "none", "status": "exited"}, "old": {"hb": "bad", "status": "running"}, "t": "2026-11-19T16:31:10Z"}
+{"detail": "exc:ApiError", "event": "change", "id": 61464883, "new": {"hb": "bad", "status": "running"}, "old": {"hb": "none", "status": "exited"}, "t": "2026-11-19T16:32:11Z"}
+{"event": "destroyed", "id": 61464883, "reason": "manual_stop", "t": "2026-11-19T16:32:49Z"}
+{"event": "destroyed", "id": 61467918, "reason": "manual_stop", "t": "2026-11-19T16:32:49Z"}
+{"event": "destroyed", "id": 61470689, "reason": "manual_stop", "t": "2026-11-19T16:32:50Z"}
+{"event": "destroyed", "id": 61472003, "reason": "manual_stop", "t": "2026-11-19T16:32:51Z"}
+{"event": "destroyed", "id": 61473283, "reason": "manual_stop", "t": "2026-11-19T16:32:52Z"}

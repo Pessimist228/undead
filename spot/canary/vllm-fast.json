@@ -1,0 +1,10 @@
+{
+  "image": "vllm/vllm-openai:v0.33.0",
+  "args": ["--model", "Qwen/Qwen2.5-7B-Instruct", "--port", "8000", "--api-key", "{KEY}", "--generation-config", "vllm"],
+  "env": {"VLLM_USE_V2_MODEL_RUNNER": "1"},
+  "port": 8000,
+  "disk": 40,
+  "label": "undead-demo",
+  "health_path": "/v1/models",
+  "health_bearer": true
+}
