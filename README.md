@@ -36,7 +36,7 @@ It was not cheaper than on-demand: $0.60 per card-hour that served against about
 
 ![One row per rented card over the 100 minutes: loading, healthy, down, and the moments the marketplace took it](spot/runs/2026-11-19-fleet/report/poster.png)
 
-The run used the router from the `router-registry` branch, which adds a replica registry, a stream limit per replica, a queue and a request journal. The replicas ran without batch invariance, so the run shows that streams survive, not that the resumed tokens are identical. Scripts, logs and the report are in [spot/](spot/).
+The run used the router of this branch, with the replica registry, the stream limit, the queue and the journal described under "Replicas, queue, admin API and journal" below. The replicas ran without batch invariance, so the run shows that streams survive, not that the resumed tokens are identical. Scripts, logs and the report are in [spot/](spot/).
 
 ## How it works
 
@@ -124,6 +124,44 @@ curl -N http://127.0.0.1:8080/v1/chat/completions -H 'Content-Type: application/
 
 If the replicas run with a key (`--api-key` or `VLLM_API_KEY`), pass it to the router with `--replica-api-key` or the `UNDEAD_REPLICA_API_KEY` variable.
 
+## Replicas, queue, admin API and journal
+
+`--replicas` is the initial list. The replicas are named `r0`, `r1`, ... in that order and can be changed while the router runs.
+
+| Flag | Meaning |
+|---|---|
+| `--max-streams N` | streams per replica from `--replicas`. Default 0: no limit |
+| `--queue-timeout S` | a new request waits this long for a free slot, then gets HTTP 503 with `Retry-After: 1`. Default 10 |
+| `--journal FILE` | one JSON line per finished request: times, token counts, time to first token, time queued, replica names, resumes, finish reason, HTTP status. No prompts, answers or token IDs |
+| `--admin-port P` | admin API on its own listener, off unless given |
+| `--admin-host H` | default `127.0.0.1` |
+| `--admin-token-file F` | the bearer token, required with `--admin-port`; the router refuses to start if the file is missing or empty |
+
+A new request goes to the active replica with the fewest streams that is below its `max_streams` (0 means no limit). A request that fails before its first token is still a new request: it takes a free slot of an active replica again, or waits, and ends in 503 when the queue time is used up. For that reason a streaming reply starts only when the first token is ready. A client that leaves while queued is dropped from the queue. A stream that is resumed never waits and may go over `max_streams`; it prefers active replicas and uses a draining one only when no active replica is left. A draining replica takes no new requests and finishes the streams it has.
+
+With the defaults one thing differs from main: a request that has no token yet and finds no replica to run on gets 503 after `--queue-timeout`, where main waited up to `--deadline`.
+
+```bash
+head -c 32 /dev/urandom | base64 > admin.token && chmod 600 admin.token
+python router.py --replicas http://127.0.0.1:8001 --model Qwen/Qwen2.5-1.5B-Instruct \
+    --admin-port 8081 --admin-token-file admin.token --journal journal.jsonl
+T="Authorization: Bearer $(cat admin.token)"
+
+# list: name, url, state, max_streams, in_flight, cooldown_seconds_left, counters, never the API key
+curl -H "$T" http://127.0.0.1:8081/admin/replicas
+
+# create or update, idempotent; "url" is required only for a new replica, other fields are optional.
+# max_streams 0 (the default for a new replica) means no limit
+curl -X PUT -H "$T" http://127.0.0.1:8081/admin/replicas/r1 \
+    -d '{"url": "http://127.0.0.1:8002", "max_streams": 8, "state": "active", "api_key": "..."}'
+curl -X PUT -H "$T" http://127.0.0.1:8081/admin/replicas/r1 -d '{"state": "draining"}'
+
+# remove, idempotent; streams on it carry on on other replicas, as if it had died
+curl -X DELETE -H "$T" http://127.0.0.1:8081/admin/replicas/r1
+```
+
+The admin API has no TLS: keep it on localhost or behind a tunnel. It refuses browser requests the same way the main listener does, with the one difference that `--allowed-origins` does not apply to it.
+
 ## Reproducing the measurements
 
 ```bash
@@ -159,7 +197,7 @@ This is a research prototype and I have not hardened it.
 - The router has no client authentication, so it listens on 127.0.0.1 by default. Anyone who can reach the port can start answers and read the ones in progress: `/metrics` lists the IDs of active answers, and `/v1/answers/{id}` and `/v1/streams/{id}` return their text.
 - If you start it with `--host 0.0.0.0`, put a proxy that checks who is calling in front of it.
 - A web page open in a browser on the same machine can reach localhost too, so the router refuses requests that came from one. A request with an `Origin` header gets HTTP 403 unless the origin is the router's own address or a localhost page. A router that listens on localhost also answers 403 to a `Host` header that is not a localhost name, and that stops DNS rebinding. `--allowed-origins` and `--allowed-hosts` add entries, and `*` turns a check off.
-- Prompts and answers are kept in memory and dropped 60 seconds after the answer ends. The router writes nothing to disk.
+- Prompts and answers are kept in memory and dropped 60 seconds after the answer ends. The router writes nothing to disk, except the journal if you start it with `--journal`: that file has no prompts, answers or token IDs.
 - `step0.py serve` starts a vLLM replica that listens on all interfaces. Give it `--api-key`, or `--host 127.0.0.1` when the replicas are reached through a tunnel.
 - Pass the replica key in `UNDEAD_REPLICA_API_KEY` rather than `--replica-api-key`. Command-line arguments show up in the process list.
 

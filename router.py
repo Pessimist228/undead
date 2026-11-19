@@ -9,15 +9,20 @@ to another replica, and the client only sees a pause.
 import argparse
 import asyncio
 import hashlib
+import hmac
 import ipaddress
 import json
 import os
 import random
+import re
 import statistics
+import sys
 import time
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from urllib.parse import urlsplit
 
 from aiohttp import ClientSession, ClientTimeout, web
 
@@ -83,6 +88,44 @@ def name_list(value):
     return [x.strip().lower().rstrip("/") for x in (value or "").split(",") if x.strip()]
 
 
+NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,62}")
+REPLICA_FIELDS = ("url", "max_streams", "state", "api_key")
+
+
+def check_replica_url(value):
+    """(normalized url, None) or (None, why not). No userinfo: the URL is shown by the admin API."""
+    if not isinstance(value, str) or not value or len(value) > 2048 or any(
+        c <= " " or c == "\x7f" for c in value
+    ):
+        return None, "url must be a string without spaces"
+    if "?" in value or "#" in value:
+        return None, "url must not have a query or a fragment"
+    try:
+        u = urlsplit(value)
+        u.port  # noqa: B018 - raises ValueError on a bad port
+    except ValueError:
+        return None, "url is not valid"
+    if u.scheme not in ("http", "https") or not u.hostname:
+        return None, "url must be http or https with a host"
+    if "@" in u.netloc:
+        return None, "url must not contain user or password"
+    return value.rstrip("/"), None
+
+
+def check_max_streams(value):
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 1024:
+        return "max_streams must be an integer from 0 (no limit) to 1024"
+    return None
+
+
+def check_api_key(value):
+    if not isinstance(value, str) or not 1 <= len(value) <= 512 or any(
+        not "!" <= c <= "~" for c in value
+    ):
+        return "api_key must be a string of 1 to 512 visible ASCII characters, or null"
+    return None
+
+
 class BrowserGuard:
     """Turns away requests that a web page sent, not a client the operator runs.
 
@@ -116,6 +159,38 @@ class BrowserGuard:
 
 
 @dataclass
+class Replica:
+    name: str
+    url: str
+    max_streams: int = 0  # 0: no limit
+    state: str = "active"  # active takes new requests, draining only finishes what it has
+    api_key: str | None = None  # None: use --replica-api-key
+    in_flight: int = 0
+    down_until: float = 0.0  # cooldown, time.monotonic()
+    started: int = 0  # streams that began on it
+    resumed_in: int = 0  # streams that were resumed onto it
+    last_error: str | None = None
+    removed: bool = False
+    epoch: int = 0  # changes with the key and the url: a refusal of the old key says nothing now
+    static_url: str | None = None  # the url it got from --replicas, if any
+    live: dict = field(default_factory=dict)  # answer id -> (answer, response) of open streams
+
+    def view(self, now):
+        return {
+            "name": self.name,
+            "url": self.url,
+            "state": self.state,
+            "max_streams": self.max_streams,  # 0: no limit
+            "in_flight": self.in_flight,
+            "cooldown_seconds_left": round(max(0.0, self.down_until - now), 3),
+            "api_key_set": self.api_key is not None,
+            "started": self.started,
+            "resumed_in": self.resumed_in,
+            "last_error": self.last_error,
+        }
+
+
+@dataclass
 class Event:
     pos: int  # how many answer tokens are covered after this event
     delta: str
@@ -144,7 +219,22 @@ class Answer:
     finished_at: float | None = None
     last_token_at: float | None = None
     pause_from: float | None = None
-    auth_refused: set = field(default_factory=set)  # replicas that answered 401 or 403
+    auth_refused: dict = field(default_factory=dict)  # name -> epoch of replicas that said 401/403
+    # journal
+    req_t0: float = field(default_factory=time.monotonic)  # request arrival, before the queue
+    started_wall: float = field(default_factory=time.time)
+    queued: float = 0.0
+    stream: bool = False
+    first_token_at: float | None = None
+    replica_names: list = field(default_factory=list)
+    resumes: list = field(default_factory=list)
+    fail_reason: str | None = None  # why the current attempt failed
+    resume_from: str | None = None  # name of the replica that failed last, with its reason
+    resume_reason: str | None = None
+    readers: set = field(default_factory=set)  # tokens of the requests reading this answer now
+    end_delivered: bool = False
+    journaled: bool = False
+    shed: bool = False  # no slot within the queue budget: the client gets HTTP 503
     cond: asyncio.Condition = field(default_factory=asyncio.Condition)
 
     @property
@@ -163,6 +253,7 @@ class Answer:
             ).hexdigest(),
             "attempts": self.attempts,
             "replicas": self.replicas,
+            "replica_names": self.replica_names,
             "replica": self.replicas[-1] if self.replicas else None,
             "pauses": [round(p, 3) for p in self.pauses],
             "seed": self.seed,
@@ -175,9 +266,19 @@ class Router:
         self.args = args
         self.tok = make_tokenizer(args.tokenizer, args.model)
         self.stop_ids = list(self.tok.stop_ids)
-        self.replicas = [u.strip().rstrip("/") for u in args.replicas.split(",") if u.strip()]
-        self.down_until = {u: 0.0 for u in self.replicas}
+        urls = [u.strip().rstrip("/") for u in args.replicas.split(",") if u.strip()]
+        self.registry = {
+            f"r{i}": Replica(f"r{i}", u, max_streams=args.max_streams, epoch=i + 1, static_url=u)
+            for i, u in enumerate(urls)
+        }
+        self.epochs = iter(range(len(urls) + 1, 2**62))
         self.rr = 0
+        self.slot_event = asyncio.Event()  # replaced and set whenever a slot may have opened
+        self.queue = deque()  # tickets of requests waiting for a slot, first in first out
+        self.journal = open(args.journal, "a", encoding="utf-8") if args.journal else None
+        self.admin_token = args.admin_token.encode() if getattr(args, "admin_token", None) else None
+        self.admin_guard = BrowserGuard(args.admin_host, args.allowed_hosts, None)
+        self.admin_runner = None
         self.answers = {}
         self.tasks = set()
         self.http = None
@@ -186,19 +287,82 @@ class Router:
 
     # ---------- replica selection ----------
 
-    def pick(self, avoid=None):
+    def _in_order(self):
+        """Replicas in round-robin order, starting at self.rr."""
+        reps = list(self.registry.values())
+        k = self.rr % len(reps) if reps else 0
+        return reps[k:] + reps[:k]
+
+    def _take(self, rep):
+        """Reserve a stream on rep. Every _take is matched by one _release."""
+        rep.in_flight += 1
+        self.rr = (list(self.registry.values()).index(rep) + 1) % len(self.registry)
+
+    def _release(self, rep):
+        rep.in_flight = max(0, rep.in_flight - 1)
+        self._wake()
+
+    def _wake(self):
+        ev, self.slot_event = self.slot_event, asyncio.Event()
+        ev.set()
+
+    def pick_new(self, avoid=None):
+        """A replica for a new request: active, not cooling down, below max_streams, the
+        fewest streams in flight (round-robin order breaks ties). Reserves a stream."""
         now = time.monotonic()
-        n = len(self.replicas)
-        alive = [
-            self.replicas[(self.rr + i) % n]
-            for i in range(n)
-            if self.down_until[self.replicas[(self.rr + i) % n]] <= now
-        ]
+        fit = [r for r in self._in_order()
+               if r.state == "active" and r.down_until <= now
+               and (not r.max_streams or r.in_flight < r.max_streams)]
+        if not fit:
+            return None
+        choice = min(fit, key=lambda r: (r is avoid, r.in_flight))
+        self._take(choice)
+        return choice
+
+    def pick(self, avoid=None):
+        """A replica for a stream that has started: never waits, may exceed max_streams.
+        Active replicas first, then draining ones; the replica that just failed comes last.
+        Reserves a stream."""
+        now = time.monotonic()
+        alive = [r for r in self._in_order() if r.down_until <= now]
         if not alive:
             return None
-        choice = next((u for u in alive if u != avoid), alive[0])
-        self.rr = (self.replicas.index(choice) + 1) % n
+        choice = min(alive, key=lambda r: ((r is avoid) * 2 + (r.state != "active"), r.in_flight))
+        self._take(choice)
         return choice
+
+    async def _slot_wait(self, limit):
+        try:  # a cooldown ends without any event, so the caller looks again after limit
+            await asyncio.wait_for(self.slot_event.wait(), limit)
+        except asyncio.TimeoutError:
+            pass
+
+    @staticmethod
+    def _gone(request):
+        tr = request.transport
+        return tr is None or tr.is_closing()
+
+    async def acquire(self, request):
+        """Wait up to --queue-timeout for a slot for a new request, first come first served.
+        Returns None on timeout, and also when the client has left: nobody wants that answer."""
+        ticket = object()
+        self.queue.append(ticket)
+        end = time.monotonic() + max(0.0, self.args.queue_timeout)
+        try:
+            while True:
+                if self._gone(request):
+                    return None
+                if self.queue[0] is ticket:
+                    rep = self.pick_new()
+                    if rep is not None:
+                        return rep
+                left = end - time.monotonic()
+                if left <= 0:
+                    return None
+                await self._slot_wait(min(left, 0.1))
+        finally:
+            self.queue.remove(ticket)
+            self._wake()  # the next in line may fit as well
 
     # ---------- answer log ----------
 
@@ -223,16 +387,78 @@ class Router:
         a.finished_at = time.monotonic()
         self.stats["finished"] += 1
         await self._notify(a)
+        self._maybe_journal(a)
 
     async def _fail(self, a, message):
         a.error = message
         a.finished_at = time.monotonic()
         self.stats["failed"] += 1
         await self._notify(a)
+        self._maybe_journal(a)
+
+    # ---------- journal ----------
+
+    def _journal_write(self, rec):
+        if self.journal is None:
+            return
+        try:
+            self.journal.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            self.journal.flush()
+        except (OSError, ValueError) as e:
+            print(f"journal: cannot write: {e}", file=sys.stderr)
+
+    @staticmethod
+    def _iso(t):
+        return datetime.fromtimestamp(t, timezone.utc).isoformat(timespec="milliseconds").replace(
+            "+00:00", "Z")
+
+    def _journal_record(self, rid, started_wall, duration, queued, finish, status, a=None,
+                        prompt_tokens=None):
+        """One line. Only counts, times and replica names: no prompt, no text, no token IDs."""
+        ms = lambda x: round(x * 1000)  # noqa: E731
+        return {
+            "id": rid,
+            "start": self._iso(started_wall),
+            "end": self._iso(started_wall + duration),
+            "model": self.args.model,
+            "prompt_tokens": len(a.prompt_ids) if a else prompt_tokens,
+            "output_tokens": len(a.output_ids) if a else 0,
+            "ttft_ms": ms(a.first_token_at - a.req_t0) if a and a.first_token_at else None,
+            "duration_ms": ms(duration),
+            "queued_ms": ms(queued),
+            "replicas": list(a.replica_names) if a else [],
+            "resumes": list(a.resumes) if a else [],
+            "finish": finish,
+            "status": status,
+        }
+
+    def _maybe_journal(self, a):
+        """Writes the line once the answer has ended and nobody is reading it any more: the
+        last reader may still be sending the end of the stream when the answer ends."""
+        if not a.done or a.journaled or a.readers:
+            return
+        a.journaled = True
+        if a.shed:
+            finish = "rejected_503"
+        elif a.error:
+            finish = "error"
+        elif not a.end_delivered:
+            finish = "client_disconnect"  # the client left and did not get the end
+        else:
+            finish = "stop" if a.finish_reason == "repetition" else a.finish_reason
+        if a.shed:
+            status = 503
+        elif a.stream or not a.error:
+            status = 200
+        else:
+            status = 400 if a.error_type == "invalid_request_error" else 502
+        self._journal_write(self._journal_record(
+            a.id, a.started_wall, a.finished_at - a.req_t0, a.queued, finish, status, a))
 
     # ---------- generation ----------
 
-    async def drive(self, a):
+    async def drive(self, a, held=None):
+        """held is the replica reserved for the first attempt by acquire()."""
         waiting_since = None
         avoid = None
         try:
@@ -253,18 +479,34 @@ class Router:
                     and time.monotonic() - waiting_since > self.args.deadline
                 ):
                     note = ""
-                    if a.auth_refused:
+                    if self._refused(a):
                         note = (
-                            f"; API key refused by {len(a.auth_refused)} "
-                            f"of {len(self.replicas)} replicas"
+                            f"; API key refused by {self._refused(a)} "
+                            f"of {len(self.registry)} replicas"
                         )
                     return await self._fail(
                         a, f"no live replicas for more than {self.args.deadline:g} s{note}"
                     )
-                replica = self.pick(avoid)
+                # until a token is out the request is still a new one: it takes a free slot of an
+                # active replica or waits for one, and when the queue budget is gone it is shed.
+                # Only a stream that has emitted tokens uses the resume rules.
+                if held is not None:
+                    replica, held = held, None
+                elif a.output_ids:
+                    replica = self.pick(avoid)
+                else:
+                    replica = self.pick_new(avoid)
                 if replica is None:
+                    if not a.output_ids and a.queued >= self.args.queue_timeout:
+                        a.shed, a.error_type = True, "service_unavailable"
+                        return await self._fail(
+                            a, f"all replicas are busy or down: no free slot after "
+                               f"{self.args.queue_timeout:g} s")
                     waiting_since = waiting_since or time.monotonic()
-                    await asyncio.sleep(0.1)
+                    t_wait = time.monotonic()
+                    await self._slot_wait(0.1)
+                    if not a.output_ids:
+                        a.queued += time.monotonic() - t_wait
                     continue
                 t_try = time.monotonic()
                 result = await self._attempt(a, replica)
@@ -273,16 +515,18 @@ class Router:
                 if result == "unauthorized":
                     # a setup problem, not a request problem: try the other replicas,
                     # and if no replica accepts the key there is no point waiting for the deadline
-                    a.auth_refused.add(replica)
-                    if len(a.auth_refused) >= len(self.replicas):
+                    a.auth_refused[replica.name] = replica.epoch
+                    if self._refused(a) >= len(self.registry):
                         return await self._fail(
                             a,
                             "all replicas refused the API key (HTTP 401 or 403): "
                             "check --replica-api-key",
                         )
-                self.down_until[replica] = time.monotonic() + self.args.cooldown
+                replica.down_until = time.monotonic() + self.args.cooldown
                 avoid = replica
                 if result == "failed":
+                    a.resume_from = replica.name
+                    a.resume_reason = a.fail_reason or "failed"
                     waiting_since = None
                     self.stats["failovers"] += 1
                     if a.pause_from is None:
@@ -292,6 +536,14 @@ class Router:
         except Exception as e:  # noqa: BLE001 - an answer must never hang silently
             if not a.done:
                 await self._fail(a, f"internal router error: {e!r}")
+        finally:
+            if held is not None:  # the answer ended before the reserved replica was used
+                self._release(held)
+
+    def _refused(self, a):
+        """How many replicas in the registry now still refused the key they have now."""
+        return sum(1 for n, e in a.auth_refused.items()
+                   if n in self.registry and self.registry[n].epoch == e)
 
     def _gap_timeout(self, intervals):
         if len(intervals) < 5:
@@ -316,11 +568,30 @@ class Router:
         body["seed"] = a.seed
         return body
 
-    async def _attempt(self, a, replica):
-        """One request to a replica.
+    def _auth(self, rep):
+        key = rep.api_key or self.args.replica_api_key
+        return {"Authorization": f"Bearer {key}"} if key else None
+
+    def _note_error(self, rep, text):
+        """Short text for the admin API. A key never belongs in it, so cut it out."""
+        for key in (rep.api_key, self.args.replica_api_key):
+            if key:
+                text = text.replace(key, "***")
+        rep.last_error = text[:200]
+
+    def _failed(self, a, rep, reason, detail=None):
+        """The stream broke after the replica accepted it. The reason is kept if the replica was
+        deleted: that sets it first, and the connection error that follows is only its effect."""
+        a.fail_reason = a.fail_reason or reason
+        self._note_error(rep, detail or a.fail_reason)
+        return "failed"
+
+    async def _attempt(self, a, rep):
+        """One request to a replica. The stream reserved on rep is released here.
 
         Returns finished, failed, unavailable, rejected or unauthorized.
         """
+        replica = rep.url
         accepted = False
         resp = None
         # the first-token budget starts when the request is sent: connect + headers + token
@@ -330,11 +601,15 @@ class Router:
                 self.http.post(
                     replica + "/v1/completions",
                     json=self._upstream_body(a),
+                    headers=self._auth(rep),
                     timeout=ClientTimeout(total=None, sock_connect=self.args.connect_timeout),
                 ),
                 self.args.first_token_timeout,
             )
+            if rep.removed:  # deleted while the request was on its way: try another one
+                return "unavailable"
             if resp.status != 200:
+                self._note_error(rep, f"HTTP {resp.status}")
                 if resp.status in (401, 403):
                     return "unauthorized"
                 if 400 <= resp.status < 500 and resp.status not in (408, 429):
@@ -366,6 +641,13 @@ class Router:
             accepted = True
             a.attempts += 1
             a.replicas.append(replica)
+            a.replica_names.append(rep.name)
+            a.fail_reason = None
+            rep.live[a.id] = (a, resp)
+            if a.output_ids:
+                rep.resumed_in += 1
+            else:
+                rep.started += 1
             intervals = deque(maxlen=50)
             got_first = False
             last = None
@@ -379,16 +661,16 @@ class Router:
                 timeout = max(0.0, budget - (time.monotonic() - since))
                 line = await asyncio.wait_for(resp.content.readline(), timeout)
                 if not line:
-                    return "failed"  # connection closed without a final chunk
+                    return self._failed(a, rep, "connection_closed")  # no final chunk
                 line = line.strip()
                 if not line.startswith(b"data:"):
                     continue
                 payload = line[5:].strip()
                 if payload == b"[DONE]":
-                    return "failed"  # no final chunk
+                    return self._failed(a, rep, "replica_error")  # no final chunk
                 obj = json.loads(payload)
                 if "error" in obj:
-                    return "failed"
+                    return self._failed(a, rep, "replica_error")
                 choices = obj.get("choices") or []
                 if not choices:
                     continue
@@ -397,8 +679,14 @@ class Router:
                 ids = ids[: a.max_tokens - len(a.output_ids)]
                 if ids:
                     now = time.monotonic()
+                    if a.first_token_at is None:
+                        a.first_token_at = now
                     if a.pause_from is not None:
                         a.pauses.append(now - a.pause_from)
+                        a.resumes.append({
+                            "pos": len(a.output_ids), "pause_ms": round((now - a.pause_from) * 1000),
+                            "from": a.resume_from, "to": rep.name, "reason": a.resume_reason,
+                        })
                         a.pause_from = None
                     if last is not None:
                         intervals.append(now - last)
@@ -410,12 +698,19 @@ class Router:
                     await self._notify(a)
                 if ch.get("finish_reason"):
                     if ch["finish_reason"] not in FINAL_REASONS:
-                        return "failed"  # abort and error: the answer is not finished, resume on another replica
+                        # abort and error: the answer is not finished, resume on another replica
+                        return self._failed(a, rep, "replica_error")
                     await self._finish(a, ch["finish_reason"])
                     return "finished"
-        except (asyncio.TimeoutError, OSError, ValueError, Exception):  # noqa: BLE001
-            return "failed" if accepted else "unavailable"
+        except (asyncio.TimeoutError, OSError, ValueError, Exception) as e:  # noqa: BLE001
+            if not accepted:
+                self._note_error(rep, f"{type(e).__name__}: {e}")
+                return "unavailable"
+            return self._failed(a, rep, "silence_timeout" if isinstance(e, asyncio.TimeoutError)
+                                else "connection_error", f"{type(e).__name__}: {e}")
         finally:
+            rep.live.pop(a.id, None)
+            self._release(rep)
             if resp is not None:
                 resp.close()  # late tokens of the old attempt will not arrive here
 
@@ -434,7 +729,18 @@ class Router:
         }
         return f"id: {a.id}:{ev.pos}\ndata: {json.dumps(obj, ensure_ascii=False)}\n\n".encode()
 
-    async def _sse(self, request, a, from_pos):
+    async def _sse(self, request, a, from_pos, me=None):
+        """me: the reader token, registered by the caller when it was created before this point
+        (the journal waits for the last reader, so a stream must not look unread while it starts)."""
+        me = me or object()
+        a.readers.add(me)
+        try:
+            return await self._sse_body(request, a, from_pos)
+        finally:
+            a.readers.discard(me)
+            self._maybe_journal(a)
+
+    async def _sse_body(self, request, a, from_pos):
         resp = web.StreamResponse(
             headers={
                 "Content-Type": "text/event-stream; charset=utf-8",
@@ -474,6 +780,7 @@ class Router:
             else:
                 await resp.write(b"data: [DONE]\n\n")
             await resp.write_eof()
+            a.end_delivered = True
         except (ConnectionError, asyncio.CancelledError, RuntimeError):
             pass  # the client dropped, generation goes on, the client may come back
         return resp
@@ -495,29 +802,55 @@ class Router:
                     status=400,
                 )
         seed = body.get("seed")
-        a = Answer(
-            id="ans-" + uuid.uuid4().hex[:12],
-            prompt_ids=self.tok.encode_chat(messages),
-            max_tokens=int(
-                body.get("max_tokens")
-                or body.get("max_completion_tokens")
-                or self.args.default_max_tokens
-            ),
-            temperature=float(body.get("temperature", 1.0)),
-            top_p=float(body.get("top_p", 1.0)),
-            seed=int(seed) if seed is not None else random.getrandbits(31),
+        rid = "ans-" + uuid.uuid4().hex[:12]
+        t_req, wall_req = time.monotonic(), time.time()
+        prompt_ids = self.tok.encode_chat(messages)
+        max_tokens = int(
+            body.get("max_tokens") or body.get("max_completion_tokens") or self.args.default_max_tokens
         )
+        temperature = float(body.get("temperature", 1.0))
+        top_p = float(body.get("top_p", 1.0))
+        seed = int(seed) if seed is not None else random.getrandbits(31)
+        t_wait = time.monotonic()
+        rep = await self.acquire(request)
+        queued = time.monotonic() - t_wait
+        if rep is not None and self._gone(request):
+            self._release(rep)  # the client left while the slot was being handed over
+            rep = None
+        if rep is None:
+            gone = self._gone(request)
+            self._journal_write(self._journal_record(
+                rid, wall_req, time.monotonic() - t_req, queued,
+                "client_disconnect" if gone else "rejected_503", 499 if gone else 503,
+                prompt_tokens=len(prompt_ids)))
+            return self._shed_response(f"{self.args.queue_timeout:g}")
+        a = Answer(
+            id=rid, prompt_ids=prompt_ids, max_tokens=max_tokens, temperature=temperature,
+            top_p=top_p, seed=seed, req_t0=t_req, started_wall=wall_req, queued=queued,
+            stream=bool(body.get("stream")),
+        )
+        me = object()  # registered before anything can await: the journal waits for readers
+        a.readers.add(me)
         self.answers[a.id] = a
         self.stats["answers"] += 1
-        task = asyncio.create_task(self.drive(a))
+        task = asyncio.create_task(self.drive(a, rep))
         self.tasks.add(task)
         task.add_done_callback(self.tasks.discard)
 
-        if body.get("stream"):
-            return await self._sse(request, a, 0)
-
-        async with a.cond:
-            await a.cond.wait_for(lambda: a.done)
+        try:
+            async with a.cond:
+                # a request that fails before its first token may still be answered with 503,
+                # so a stream starts only once there is something to send
+                await a.cond.wait_for(lambda: a.done or (a.stream and a.events))
+            if a.shed:
+                return self._shed_response(f"{self.args.queue_timeout:g}")
+            if a.stream:
+                return await self._sse(request, a, 0, me)
+            tr = request.transport  # None or closing: the client has gone
+            a.end_delivered = tr is not None and not tr.is_closing()
+        finally:
+            a.readers.discard(me)
+            self._maybe_journal(a)
         if a.error:
             return web.json_response(
                 {"error": {"message": a.error, "type": a.error_type}},
@@ -547,6 +880,14 @@ class Router:
                 },
             },
             headers={"X-Answer-Id": a.id},
+        )
+
+    @staticmethod
+    def _shed_response(seconds):
+        return web.json_response(
+            {"error": {"message": f"all replicas are busy or down: no free slot after {seconds} s",
+                       "type": "service_unavailable"}},
+            status=503, headers={"Retry-After": "1"},
         )
 
     async def resume(self, request):
@@ -581,7 +922,10 @@ class Router:
         return web.json_response(
             {
                 **self.stats,
-                "replicas": {u: ("down" if t > now else "up") for u, t in self.down_until.items()},
+                # the unauthenticated endpoint names only the urls given on the command line
+                "replicas": {(r.url if r.url == r.static_url else r.name):
+                             ("down" if r.down_until > now else "up")
+                             for r in self.registry.values()},
                 "active": [
                     {
                         "id": a.id,
@@ -593,6 +937,104 @@ class Router:
                 ],
             }
         )
+
+    # ---------- admin API ----------
+
+    @staticmethod
+    def _bad(message, status=400):
+        return web.json_response({"error": {"message": message, "type": "invalid_request_error"}},
+                                 status=status)
+
+    def admin_app(self):
+        @web.middleware
+        async def gate(request, handler):
+            why = self.admin_guard.reason(request.headers.get("Host"), request.headers.get("Origin"))
+            if why:
+                return web.json_response(
+                    {"error": {"message": why, "type": "forbidden"}}, status=403)
+            scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+            if scheme.lower() != "bearer" or not hmac.compare_digest(
+                    token.strip().encode(), self.admin_token):
+                return web.json_response(
+                    {"error": {"message": "missing or wrong admin token", "type": "unauthorized"}},
+                    status=401, headers={"WWW-Authenticate": "Bearer"})
+            return await handler(request)
+
+        app = web.Application(middlewares=[gate])
+        app.router.add_get("/admin/replicas", self.admin_list)
+        app.router.add_put("/admin/replicas/{name}", self.admin_put)
+        app.router.add_delete("/admin/replicas/{name}", self.admin_delete)
+        return app
+
+    async def admin_list(self, request):
+        now = time.monotonic()
+        return web.json_response([r.view(now) for r in self.registry.values()])
+
+    async def admin_put(self, request):
+        name = request.match_info["name"]
+        if not NAME_RE.fullmatch(name):
+            return self._bad("name must match [a-z0-9][a-z0-9-]{0,62}")
+        try:
+            body = await request.json()
+        except ValueError:
+            return self._bad("expected a JSON object")
+        if not isinstance(body, dict):
+            return self._bad("expected a JSON object")
+        extra = sorted(set(body) - set(REPLICA_FIELDS))
+        if extra:
+            return self._bad(f"unknown fields: {', '.join(map(str, extra))}")
+        rep = self.registry.get(name)
+        if rep is None and "url" not in body:
+            return self._bad("url is required for a replica that does not exist")
+        new = {}
+        if "url" in body:
+            new["url"], why = check_replica_url(body["url"])
+            if why:
+                return self._bad(why)
+        if "max_streams" in body:
+            why = check_max_streams(body["max_streams"])
+            if why:
+                return self._bad(why)
+            new["max_streams"] = body["max_streams"]
+        if "state" in body:
+            if body["state"] not in ("active", "draining"):
+                return self._bad('state must be "active" or "draining"')
+            new["state"] = body["state"]
+        if "api_key" in body:  # null goes back to --replica-api-key
+            why = None if body["api_key"] is None else check_api_key(body["api_key"])
+            if why:
+                return self._bad(why)
+            new["api_key"] = body["api_key"]
+        created = rep is None
+        if created:
+            rep = self.registry[name] = Replica(name, epoch=next(self.epochs), **new)
+        else:
+            if new.get("url", rep.url) != rep.url:
+                rep.down_until = 0.0  # another host: the old cooldown says nothing about it
+            if new.get("url", rep.url) != rep.url or new.get("api_key", rep.api_key) != rep.api_key:
+                rep.epoch = next(self.epochs)
+            for k, v in new.items():
+                setattr(rep, k, v)
+        self._wake()
+        return web.json_response(rep.view(time.monotonic()), status=201 if created else 200)
+
+    async def admin_delete(self, request):
+        name = request.match_info["name"]
+        if not NAME_RE.fullmatch(name):
+            return self._bad("name must match [a-z0-9][a-z0-9-]{0,62}")
+        rep = self.registry.pop(name, None)
+        cut = 0
+        if rep is not None:
+            rep.removed = True
+            # the streams on it go the way of a dead replica: their connection closes, and the
+            # answer resumes on another replica
+            for a, resp in list(rep.live.values()):
+                a.fail_reason = "replica_removed"
+                resp.close()
+                cut += 1
+        self._wake()
+        return web.json_response({"name": name, "removed": rep is not None,
+                                  "interrupted_streams": cut})
 
     async def health(self, request):
         return web.json_response({"status": "ok"})
@@ -609,15 +1051,20 @@ class Router:
                 del self.answers[aid]
 
     async def on_startup(self, app):
-        headers = None
-        if self.args.replica_api_key:
-            headers = {"Authorization": f"Bearer {self.args.replica_api_key}"}
-        self.http = ClientSession(read_bufsize=2**22, headers=headers)
+        self.http = ClientSession(read_bufsize=2**22)  # replica keys go per request
         app["gc"] = asyncio.create_task(self._gc())
+        if self.args.admin_port:
+            self.admin_runner = web.AppRunner(self.admin_app())
+            await self.admin_runner.setup()
+            await web.TCPSite(self.admin_runner, self.args.admin_host, self.args.admin_port).start()
 
     async def on_cleanup(self, app):
         app["gc"].cancel()
+        if self.admin_runner:
+            await self.admin_runner.cleanup()
         await self.http.close()
+        if self.journal:
+            self.journal.close()
 
     def app(self):
         @web.middleware
@@ -642,7 +1089,8 @@ class Router:
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Router that resumes an answer on another replica")
-    p.add_argument("--replicas", required=True, help="replica URLs, comma-separated")
+    p.add_argument("--replicas", default="",
+                   help="replica URLs, comma-separated; may be left out only with --admin-port")
     p.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
     p.add_argument("--tokenizer", choices=["hf", "bytes"], default="hf")
     p.add_argument("--host", default="127.0.0.1",
@@ -673,9 +1121,46 @@ def parse_args(argv=None):
     p.add_argument("--replica-api-key", default=os.environ.get("UNDEAD_REPLICA_API_KEY"),
                    help="key for replicas started with --api-key; "
                         "defaults to the UNDEAD_REPLICA_API_KEY variable")
-    return p.parse_args(argv)
+    p.add_argument("--max-streams", type=int, default=0,
+                   help="streams per replica from --replicas that new requests may use, "
+                        "0 means no limit")
+    p.add_argument("--queue-timeout", type=float, default=10.0,
+                   help="how long a new request waits for a free slot before HTTP 503, seconds")
+    p.add_argument("--journal", default=None,
+                   help="append one JSON line per finished request to this file")
+    p.add_argument("--admin-port", type=int, default=None,
+                   help="port of the admin API; off unless given, needs --admin-token-file")
+    p.add_argument("--admin-host", default="127.0.0.1")
+    p.add_argument("--admin-token-file", default=None,
+                   help="file with the bearer token of the admin API, read once at start")
+    args = p.parse_args(argv)
+    args.admin_token = None
+    if not args.admin_port and not any(u.strip() for u in args.replicas.split(",")):
+        p.error("--replicas is required unless --admin-port is given")
+    if not 0 <= args.max_streams <= 1024:
+        p.error("--max-streams must be from 0 (no limit) to 1024")
+    for i, url in enumerate(u.strip() for u in args.replicas.split(",") if u.strip()):
+        if check_replica_url(url)[1]:
+            p.error(f"--replicas entry {i + 1} is not an http(s) URL with a host and no password")
+    if args.admin_token_file and not args.admin_port:
+        print("router: --admin-token-file is ignored without --admin-port", file=sys.stderr)
+    if args.admin_port:
+        if not args.admin_token_file:
+            p.error("--admin-port needs --admin-token-file")
+        try:
+            with open(args.admin_token_file, encoding="utf-8") as f:
+                args.admin_token = f.read().strip()
+        except (OSError, ValueError) as e:
+            p.error(f"cannot read --admin-token-file: {e.__class__.__name__}")
+        if not args.admin_token:
+            p.error("--admin-token-file is empty")
+    return args
 
 
 if __name__ == "__main__":
     args = parse_args()
-    web.run_app(Router(args).app(), host=args.host, port=args.port, print=None)
+    try:
+        router = Router(args)
+    except OSError as e:  # the journal file
+        sys.exit(f"router: {e}")
+    web.run_app(router.app(), host=args.host, port=args.port, print=None)

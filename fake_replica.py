@@ -68,6 +68,8 @@ def split_sequence(ids):
 
 async def completions(request):
     args = request.app["args"]
+    if args.http_error:  # реплика жива, но отвечает ошибкой до первого токена
+        return web.json_response({"error": "injected failure"}, status=args.http_error)
     body = await request.json()
     prompt = body.get("prompt")
     if not isinstance(prompt, list) or not all(isinstance(i, int) for i in prompt):
@@ -207,6 +209,8 @@ if __name__ == "__main__":
     p.add_argument("--no-eos-id", dest="emit_eos_id", action="store_false",
                    help="не класть ID конца ответа в token_ids")
     p.add_argument("--api-key", default=None, help="требовать этот ключ для /v1")
+    p.add_argument("--http-error", type=int, default=0,
+                   help="на каждый /v1/completions отвечать этим HTTP-статусом")
     p.add_argument("--drift-token", type=int, default=0,
                    help="в продолжении подменять примерно каждый N-й токен")
     p.add_argument("--drift-logprob", type=int, default=0,
